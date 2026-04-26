@@ -1,3 +1,4 @@
+mod app_state;
 mod config;
 mod db;
 mod errors;
@@ -8,10 +9,12 @@ mod models;
 mod schema;
 mod services;
 
-use axum::routing::{delete, get, post};
+use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+
+use app_state::AppState;
 
 #[tokio::main]
 async fn main() {
@@ -38,11 +41,16 @@ async fn main() {
 
     tracing::info!("Database connected and migrations applied");
 
+    let state = AppState {
+        pool: pool.clone(),
+        config: app_config.clone(),
+    };
+
     let app = Router::new()
         .route("/v1/health-check", get(handlers::health::health_check))
         .route("/v1/auth/register", post(handlers::auth::register))
         .route("/v1/auth/login", post(handlers::auth::login))
-        .route("/v1/auth/refresh-token", post(handlers::auth::refresh_token))
+        .route("/v1/auth/refresh-token", post(handlers::auth::refresh))
         .route("/v1/users", get(handlers::user::list_users).post(handlers::user::create_user))
         .route("/v1/users/profile", get(handlers::user::get_profile))
         .route(
@@ -52,8 +60,11 @@ async fn main() {
                 .patch(handlers::user::update_user)
                 .delete(handlers::user::delete_user),
         )
+        .layer(axum::Extension(pool))
+        .layer(axum::Extension(app_config))
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive());
+        .layer(CorsLayer::permissive())
+        .with_state(state);
 
     let addr = format!("{}:{}", host, port);
     let listener = tokio::net::TcpListener::bind(&addr)

@@ -1,9 +1,4 @@
-//! Auth handlers – mirrors src/api/controllers/auth.controller.js
-//!
-//! Endpoints:
-//!   POST /v1/auth/register     – Register a new user, return JWT + refresh token
-//!   POST /v1/auth/login        – Authenticate, return JWT + refresh token
-//!   POST /v1/auth/refresh-token – Exchange refresh token for new JWT
+//! Auth handlers - mirrors src/api/controllers/auth.controller.js
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -17,7 +12,6 @@ use crate::errors::AppError;
 use crate::extractors::ValidatedJson;
 use crate::models::user::UserResponse;
 
-/// Token response returned by auth endpoints.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenResponse {
     pub token_type: String,
@@ -26,14 +20,12 @@ pub struct TokenResponse {
     pub expires_in: DateTime<Utc>,
 }
 
-/// Combined response for register/login: { token, user }
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
     pub token: TokenResponse,
     pub user: UserResponse,
 }
 
-/// Request body for POST /v1/auth/register
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
     #[validate(email(message = "must be a valid email"))]
@@ -42,7 +34,6 @@ pub struct RegisterRequest {
     pub password: String,
 }
 
-/// Request body for POST /v1/auth/login
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
     #[validate(email(message = "must be a valid email"))]
@@ -51,7 +42,6 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-/// Request body for POST /v1/auth/refresh-token
 #[derive(Debug, Deserialize, Validate)]
 pub struct RefreshRequest {
     #[validate(email(message = "must be a valid email"))]

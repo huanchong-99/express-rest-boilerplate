@@ -1,13 +1,10 @@
 //! Error types – mirrors src/api/utils/APIError.js and src/api/middlewares/error.js.
-//!
-//! The original APIError has: message, errors (array), status, isPublic, stack.
-//! We map those to Axum's IntoResponse with appropriate HTTP status codes.
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-/// Application error type. Derives thiserror for ergonomics and
-/// implements IntoResponse so it can be returned from handlers directly.
+
+/// Application error type.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("Not found")]
@@ -42,8 +39,6 @@ pub enum AppError {
 }
 
 /// A single field-level validation error.
-/// Mirrors the structure from the original express-validation error format:
-///   { field, location, messages: [...] }
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FieldError {
     pub field: String,
@@ -61,8 +56,7 @@ impl FieldError {
     }
 }
 
-/// JSON error response body matching original APIError structure:
-/// { code, message, errors?, stack? }
+/// JSON error response body.
 #[derive(serde::Serialize)]
 struct ErrorBody {
     code: u16,

@@ -1,9 +1,134 @@
-//! Auth service placeholder
+//! Auth service - mirrors auth.controller.js logic and RefreshToken statics.
 
+use chrono::{Duration, Utc};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::user::User;
+use crate::middleware::auth::create_access_token;
 
-pub async fn authenticate_user(_pool: &PgPool, _email: &str, _password: &str) -> Result<(User, String), AppError> { todo!() }
-pub async fn refresh_access_token(_pool: &PgPool, _email: &str, _refresh_token: &str) -> Result<(User, String), AppError> { todo!() }
+/// Register a new user and return (user, access_token, refresh_token, expires_at).
+pub async fn register_user(
+    pool: &PgPool,
+    jwt_secret: &str,
+    expiration_minutes: i64,
+    email: &str,
+    password: &str,
+) -> Result<(User, String, String, chrono::DateTime<Utc>), AppError> {
+    let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let user = sqlx::query_as::<_, User>(
+        "INSERT INTO users (email, password, role) VALUES ($1, $2, 'user') RETURNING *",
+    )
+    .bind(email.to_lowercase())
+    .bind(&hash)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        if let Some(db_err) = e.as_database_error() {
+            if db_err.code().as_deref() == Some("23505") {
+                return AppError::DuplicateEmail;
+            }
+        }
+        AppError::Internal(e.to_string())
+    })?;
+
+    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+    let refresh_token = create_refresh_token(&mut tx, &user).await?;
+
+    tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((user, access_token, refresh_token, expires))
+}
+
+/// Login: verify email + password, return tokens.
+pub async fn authenticate_user(
+    pool: &PgPool,
+    jwt_secret: &str,
+    expiration_minutes: i64,
+    email: &str,
+    password: &str,
+) -> Result<(User, String, String, chrono::DateTime<Utc>), AppError> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(email.to_lowercase())
+        .fetch_optional(pool)
+        .await?
+        .ok_or(AppError::IncorrectCredentials)?;
+
+    let valid = bcrypt::verify(password, &user.password)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if !valid {
+        return Err(AppError::IncorrectCredentials);
+    }
+
+    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+
+    let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+    let refresh_token = create_refresh_token(&mut tx, &user).await?;
+    tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((user, access_token, refresh_token, expires))
+}
+
+/// Refresh: verify email + refresh token, consume old, issue new tokens.
+pub async fn refresh_access_token(
+    pool: &PgPool,
+    jwt_secret: &str,
+    expiration_minutes: i64,
+    email: &str,
+    refresh_token_str: &str,
+) -> Result<(User, String, String, chrono::DateTime<Utc>), AppError> {
+    let removed = sqlx::query_as::<_, crate::models::refresh_token::RefreshToken>(
+        "DELETE FROM refresh_tokens WHERE user_email = $1 AND token = $2 RETURNING *",
+    )
+    .bind(email.to_lowercase())
+    .bind(refresh_token_str)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?
+    .ok_or(AppError::IncorrectRefreshToken)?;
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(removed.user_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+
+    let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+    let new_refresh = create_refresh_token(&mut tx, &user).await?;
+    tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((user, access_token, new_refresh, expires))
+}
+
+async fn create_refresh_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user: &User,
+) -> Result<String, AppError> {
+    let token_value = format!(
+        "{}.{}",
+        user.id,
+        Uuid::new_v4().to_string().replace('-', "")
+    );
+    let expires = Utc::now() + Duration::days(30);
+
+    sqlx::query(
+        "INSERT INTO refresh_tokens (token, user_id, user_email, expires) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&token_value)
+    .bind(user.id)
+    .bind(&user.email)
+    .bind(expires)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(token_value)
+}
