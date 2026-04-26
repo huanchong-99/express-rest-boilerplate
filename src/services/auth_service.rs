@@ -108,6 +108,7 @@ pub async fn refresh_access_token(
     Ok((user, access_token, new_refresh, expires))
 }
 
+/// Generate a new refresh token and persist it.
 async fn create_refresh_token(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     user: &User,

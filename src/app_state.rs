@@ -1,11 +1,11 @@
-//! Shared application state.
+//! Shared application state passed to all Axum handlers via State extractor.
 
 use axum::extract::FromRef;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
 
-/// Shared application state available to all handlers via State extractor.
+/// Application state shared across all handlers.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
