@@ -38,11 +38,11 @@ pub async fn register_user(
     })?;
 
     let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
-    let refresh_token = create_refresh_token(&mut tx, &user).await?;
+    let new_refresh = create_refresh_token(&mut tx, &user).await?;
 
     tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    Ok((user, access_token, refresh_token, expires))
+    Ok((user, access_token, new_refresh, expires))
 }
 
 /// Login: verify email + password, return tokens.
@@ -69,10 +69,10 @@ pub async fn authenticate_user(
     let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
 
     let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
-    let refresh_token = create_refresh_token(&mut tx, &user).await?;
+    let new_refresh = create_refresh_token(&mut tx, &user).await?;
     tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    Ok((user, access_token, refresh_token, expires))
+    Ok((user, access_token, new_refresh, expires))
 }
 
 /// Refresh: verify email + refresh token, consume old, issue new tokens.

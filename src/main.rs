@@ -9,15 +9,24 @@ mod models;
 mod schema;
 mod services;
 
+use std::process;
+
 use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-use app_state::AppState;
+use crate::app_state::AppState;
 
 #[tokio::main]
 async fn main() {
+    if let Err(e) = run_server().await {
+        tracing::error!("Fatal error: {e}");
+        process::exit(1);
+    }
+}
+
+async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()
@@ -27,17 +36,13 @@ async fn main() {
         )
         .init();
 
-    let app_config = config::AppConfig::from_env();
+    let app_config = config::AppConfig::from_env()?;
     let port = app_config.port;
     let host = app_config.host.clone();
 
-    let pool = db::create_pool(&app_config.database_url)
-        .await
-        .expect("Failed to create database pool");
+    let pool = db::create_pool(&app_config.database_url).await?;
 
-    db::run_migrations(&pool)
-        .await
-        .expect("Failed to run database migrations");
+    db::run_migrations(&pool).await?;
 
     tracing::info!("Database connected and migrations applied");
 
@@ -51,7 +56,10 @@ async fn main() {
         .route("/v1/auth/register", post(handlers::auth::register))
         .route("/v1/auth/login", post(handlers::auth::login))
         .route("/v1/auth/refresh-token", post(handlers::auth::refresh))
-        .route("/v1/users", get(handlers::user::list_users).post(handlers::user::create_user))
+        .route(
+            "/v1/users",
+            get(handlers::user::list_users).post(handlers::user::create_user),
+        )
         .route("/v1/users/profile", get(handlers::user::get_profile))
         .route(
             "/v1/users/{user_id}",
@@ -67,13 +75,11 @@ async fn main() {
         .with_state(state);
 
     let addr = format!("{}:{}", host, port);
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .expect("Failed to bind address");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     tracing::info!("Server started on {}", addr);
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }

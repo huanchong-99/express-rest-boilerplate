@@ -3,6 +3,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use utoipa::ToSchema;
 
 /// Application error type.
 #[derive(Debug, thiserror::Error)]
@@ -39,7 +40,7 @@ pub enum AppError {
 }
 
 /// A single field-level validation error.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, ToSchema)]
 pub struct FieldError {
     pub field: String,
     pub location: String,
@@ -57,8 +58,8 @@ impl FieldError {
 }
 
 /// JSON error response body.
-#[derive(serde::Serialize)]
-struct ErrorBody {
+#[derive(serde::Serialize, ToSchema)]
+pub struct ErrorBody {
     code: u16,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]

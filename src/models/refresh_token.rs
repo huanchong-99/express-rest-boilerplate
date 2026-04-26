@@ -9,10 +9,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Database row for the `refresh_tokens` table.
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct RefreshToken {
     pub id: Uuid,
     pub token: String,
@@ -23,7 +24,7 @@ pub struct RefreshToken {
 }
 
 /// Data for creating a new refresh token.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NewRefreshToken {
     pub token: String,
     pub user_id: Uuid,

@@ -25,22 +25,42 @@ pub async fn list_users(
     email: Option<String>,
     role: Option<String>,
 ) -> Result<Vec<User>, AppError> {
-    let offset = per_page * (page - 1);
+    let page = page.max(1);
+    let per_page = per_page.clamp(1, 100);
+    let offset = per_page.saturating_mul(page.saturating_sub(1));
 
     let mut query = String::from("SELECT * FROM users WHERE 1=1");
-    let mut param_idx = 1u32;
+    let mut param_idx: u32 = 1;
 
-    if name.is_some() { query.push_str(&format!(" AND name ILIKE ${}", param_idx)); param_idx += 1; }
-    if email.is_some() { query.push_str(&format!(" AND email ILIKE ${}", param_idx)); param_idx += 1; }
-    if role.is_some() { query.push_str(&format!(" AND role = ${}", param_idx)); param_idx += 1; }
+    if name.is_some() {
+        query.push_str(&format!(" AND name ILIKE ${param_idx}"));
+        param_idx += 1;
+    }
+    if email.is_some() {
+        query.push_str(&format!(" AND email ILIKE ${param_idx}"));
+        param_idx += 1;
+    }
+    if role.is_some() {
+        query.push_str(&format!(" AND role = ${param_idx}"));
+        param_idx += 1;
+    }
 
-    query.push_str(&format!(" ORDER BY created_at DESC OFFSET ${} LIMIT ${}", param_idx, param_idx + 1));
+    query.push_str(&format!(
+        " ORDER BY created_at DESC OFFSET ${param_idx} LIMIT ${}",
+        param_idx + 1
+    ));
 
     let mut q = sqlx::query_as::<_, User>(&query);
 
-    if let Some(n) = &name { q = q.bind(format!("%{}%", n)); }
-    if let Some(e) = &email { q = q.bind(format!("%{}%", e)); }
-    if let Some(r) = &role { q = q.bind(r); }
+    if let Some(n) = &name {
+        q = q.bind(format!("%{}%", n));
+    }
+    if let Some(e) = &email {
+        q = q.bind(format!("%{}%", e));
+    }
+    if let Some(r) = &role {
+        q = q.bind(r);
+    }
 
     q = q.bind(offset).bind(per_page);
 

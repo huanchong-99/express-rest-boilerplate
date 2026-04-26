@@ -12,14 +12,17 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
 /// Database row for the `users` table.
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct User {
     pub id: Uuid,
     pub email: String,
+    #[serde(skip_serializing)]
+    #[schema(value_type = String, example = "******")]
     pub password: String,
     pub name: Option<String>,
     pub role: String,
@@ -32,7 +35,7 @@ pub struct User {
 
 /// Data for creating a new user.
 /// Maps to the POST /v1/auth/register and POST /v1/users request bodies.
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
 pub struct NewUser {
     #[validate(email(message = "must be a valid email"))]
     pub email: String,
@@ -46,7 +49,7 @@ pub struct NewUser {
 
 /// Data for updating an existing user (PATCH).
 /// All fields are optional – only provided fields will be updated.
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
 pub struct UpdateUser {
     #[validate(email(message = "must be a valid email"))]
     pub email: Option<String>,
@@ -63,7 +66,7 @@ pub struct UpdateUser {
 /// Returned by all endpoints instead of the full User (hides password, etc.).
 ///
 /// Original transform() returns: id, name, email, picture, role, createdAt
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UserResponse {
     pub id: Uuid,
     pub name: Option<String>,

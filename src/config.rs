@@ -13,6 +13,18 @@ pub struct AppConfig {
     pub env: String,
 }
 
+/// Error type for configuration loading failures.
+#[derive(Debug)]
+pub struct ConfigError(String);
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Configuration error: {}", self.0)
+    }
+}
+
+impl std::error::Error for ConfigError {}
+
 impl AppConfig {
     /// Load configuration from environment variables.
     ///
@@ -23,24 +35,31 @@ impl AppConfig {
     ///   PORT               – Server port (default: 3000)
     ///   HOST               – Server host (default: 0.0.0.0)
     ///   NODE_ENV           – Environment name (default: development)
-    pub fn from_env() -> Self {
-        Self {
-            database_url: env::var("DATABASE_URL")
-                .expect("DATABASE_URL must be set"),
-            jwt_secret: env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set"),
-            jwt_expiration_minutes: env::var("JWT_EXPIRATION_MINUTES")
-                .unwrap_or_else(|_| "15".into())
-                .parse()
-                .expect("JWT_EXPIRATION_MINUTES must be a number"),
-            port: env::var("PORT")
-                .unwrap_or_else(|_| "3000".into())
-                .parse()
-                .expect("PORT must be a number"),
-            host: env::var("HOST")
-                .unwrap_or_else(|_| "0.0.0.0".into()),
-            env: env::var("NODE_ENV")
-                .unwrap_or_else(|_| "development".into()),
-        }
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let database_url = env::var("DATABASE_URL")
+            .map_err(|_| ConfigError("DATABASE_URL must be set".into()))?;
+        let jwt_secret = env::var("JWT_SECRET")
+            .map_err(|_| ConfigError("JWT_SECRET must be set".into()))?;
+        let jwt_expiration_minutes: i64 = env::var("JWT_EXPIRATION_MINUTES")
+            .unwrap_or_else(|_| "15".into())
+            .parse()
+            .map_err(|_| ConfigError("JWT_EXPIRATION_MINUTES must be a number".into()))?;
+        let port: u16 = env::var("PORT")
+            .unwrap_or_else(|_| "3000".into())
+            .parse()
+            .map_err(|_| ConfigError("PORT must be a number".into()))?;
+        let host = env::var("HOST")
+            .unwrap_or_else(|_| "0.0.0.0".into());
+        let env_name = env::var("NODE_ENV")
+            .unwrap_or_else(|_| "development".into());
+
+        Ok(Self {
+            database_url,
+            jwt_secret,
+            jwt_expiration_minutes,
+            port,
+            host,
+            env: env_name,
+        })
     }
 }
