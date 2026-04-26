@@ -78,7 +78,7 @@ pub async fn register(
     let (user, access_token, refresh_token, expires) =
         crate::services::auth_service::register_user(
             &state.pool,
-            &state.config.jwt_secret,
+            &state.config.token_signing_key,
             state.config.jwt_expiration_minutes,
             &body.email,
             &body.password,
@@ -115,7 +115,7 @@ pub async fn login(
     let (user, access_token, refresh_token, expires) =
         crate::services::auth_service::authenticate_user(
             &state.pool,
-            &state.config.jwt_secret,
+            &state.config.token_signing_key,
             state.config.jwt_expiration_minutes,
             &body.email,
             &body.password,
@@ -152,7 +152,7 @@ pub async fn refresh(
     let (_user, access_token, refresh_token, expires) =
         crate::services::auth_service::refresh_access_token(
             &state.pool,
-            &state.config.jwt_secret,
+            &state.config.token_signing_key,
             state.config.jwt_expiration_minutes,
             &body.email,
             &body.refresh_token,

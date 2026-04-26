@@ -203,6 +203,7 @@ pub async fn delete_user(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
 }
 
 /// Find a user by email address.
+#[allow(dead_code)]
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(email.to_lowercase())

@@ -13,6 +13,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
+use utoipa::IntoParams;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -23,7 +24,7 @@ use crate::middleware::auth::{authorize_user_access, AdminUser, LoggedUser, ROLE
 use crate::models::user::{NewUser, UpdateUser, UserResponse};
 
 /// Query parameters for GET /v1/users
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, IntoParams, utoipa::ToSchema)]
 pub struct ListUsersQuery {
     #[validate(range(min = 1))]
     pub page: Option<i64>,
@@ -35,6 +36,17 @@ pub struct ListUsersQuery {
 }
 
 /// GET /v1/users - List all users (admin only).
+#[utoipa::path(
+    get,
+    path = "/v1/users",
+    params(ListUsersQuery),
+    responses(
+        (status = 200, description = "List of users", body = Vec<UserResponse>),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden - admin only", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn list_users(
     _admin: AdminUser,
     State(state): State<AppState>,
@@ -59,6 +71,18 @@ pub async fn list_users(
 }
 
 /// POST /v1/users - Create a new user (admin only).
+#[utoipa::path(
+    post,
+    path = "/v1/users",
+    request_body = NewUser,
+    responses(
+        (status = 201, description = "User created", body = UserResponse),
+        (status = 400, description = "Validation error", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden - admin only", body = crate::errors::ErrorBody),
+        (status = 409, description = "Duplicate email", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn create_user(
     _admin: AdminUser,
     State(state): State<AppState>,
@@ -79,6 +103,15 @@ pub async fn create_user(
 }
 
 /// GET /v1/users/profile - Get current authenticated user's profile.
+#[utoipa::path(
+    get,
+    path = "/v1/users/profile",
+    responses(
+        (status = 200, description = "Current user profile", body = UserResponse),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn get_profile(
     logged: LoggedUser,
 ) -> Result<Json<UserResponse>, AppError> {
@@ -86,6 +119,17 @@ pub async fn get_profile(
 }
 
 /// GET /v1/users/{user_id} - Get a user by ID.
+#[utoipa::path(
+    get,
+    path = "/v1/users/{user_id}",
+    responses(
+        (status = 200, description = "User found", body = UserResponse),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden", body = crate::errors::ErrorBody),
+        (status = 404, description = "User not found", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn get_user(
     logged: LoggedUser,
     State(state): State<AppState>,
@@ -98,6 +142,20 @@ pub async fn get_user(
 }
 
 /// PUT /v1/users/{user_id} - Replace a user entirely.
+#[utoipa::path(
+    put,
+    path = "/v1/users/{user_id}",
+    request_body = NewUser,
+    responses(
+        (status = 200, description = "User replaced", body = UserResponse),
+        (status = 400, description = "Validation error", body = crate::errors::ErrorBody),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden", body = crate::errors::ErrorBody),
+        (status = 404, description = "User not found", body = crate::errors::ErrorBody),
+        (status = 409, description = "Duplicate email", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn replace_user(
     logged: LoggedUser,
     State(state): State<AppState>,
@@ -113,6 +171,20 @@ pub async fn replace_user(
 }
 
 /// PATCH /v1/users/{user_id} - Update a user partially.
+#[utoipa::path(
+    patch,
+    path = "/v1/users/{user_id}",
+    request_body = UpdateUser,
+    responses(
+        (status = 200, description = "User updated", body = UserResponse),
+        (status = 400, description = "Validation error", body = crate::errors::ErrorBody),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden", body = crate::errors::ErrorBody),
+        (status = 404, description = "User not found", body = crate::errors::ErrorBody),
+        (status = 409, description = "Duplicate email", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn update_user(
     logged: LoggedUser,
     State(state): State<AppState>,
@@ -128,6 +200,17 @@ pub async fn update_user(
 }
 
 /// DELETE /v1/users/{user_id} - Delete a user.
+#[utoipa::path(
+    delete,
+    path = "/v1/users/{user_id}",
+    responses(
+        (status = 204, description = "User deleted"),
+        (status = 401, description = "Unauthorized", body = crate::errors::ErrorBody),
+        (status = 403, description = "Forbidden", body = crate::errors::ErrorBody),
+        (status = 404, description = "User not found", body = crate::errors::ErrorBody),
+    ),
+    security(("bearer_auth" = [])),
+)]
 pub async fn delete_user(
     logged: LoggedUser,
     State(state): State<AppState>,

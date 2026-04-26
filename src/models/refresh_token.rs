@@ -25,6 +25,7 @@ pub struct RefreshToken {
 
 /// Data for creating a new refresh token.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[allow(dead_code)]
 pub struct NewRefreshToken {
     pub token: String,
     pub user_id: Uuid,

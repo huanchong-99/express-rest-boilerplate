@@ -39,6 +39,7 @@ where
 }
 
 /// A query parameter extractor that runs validator::Validate on the deserialized type.
+#[allow(dead_code)]
 pub struct ValidatedQuery<T>(pub T);
 
 #[async_trait]
@@ -125,6 +126,7 @@ fn validation_errors_to_field_errors(
 
 /// Validate a struct that implements `Validate` and convert errors to `AppError`.
 /// Used by handlers that receive raw `Json<T>` and then validate manually.
+#[allow(dead_code)]
 pub fn validate_to_app_error<T: Validate>(value: &T) -> Result<(), AppError> {
     value.validate().map_err(|e| {
         let errors = validation_errors_to_field_errors(e);

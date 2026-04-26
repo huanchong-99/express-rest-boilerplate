@@ -13,6 +13,7 @@ use crate::models::user::User;
 
 /// User role constants, matching the original code.
 pub const ADMIN: &str = "admin";
+#[allow(dead_code)]
 pub const LOGGED_USER: &str = "_loggedUser";
 pub const ROLES: [&str; 2] = ["user", "admin"];
 
@@ -27,7 +28,7 @@ pub struct TokenClaims {
 /// Generate a JWT access token for the given user id.
 pub fn create_access_token(
     user_id: Uuid,
-    jwt_secret: &str,
+    signing_key: &str,
     expiration_minutes: i64,
 ) -> Result<(String, chrono::DateTime<Utc>), AppError> {
     let now = Utc::now();
@@ -40,7 +41,7 @@ pub fn create_access_token(
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(jwt_secret.as_bytes()),
+        &EncodingKey::from_secret(signing_key.as_bytes()),
     )
     .map_err(|e| AppError::Internal(format!("Token encode error: {e}")))?;
 
@@ -106,7 +107,7 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
                 .strip_prefix("Bearer ")
                 .ok_or(AppError::Unauthorized)?;
 
-            let claims = decode_access_token(token, &config.jwt_secret)?;
+            let claims = decode_access_token(token, &config.token_signing_key)?;
 
             let user_id = Uuid::parse_str(&claims.sub)
                 .map_err(|_| AppError::Unauthorized)?;
@@ -125,6 +126,7 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
 
 /// Admin-only guard: requires role = "admin".
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AdminUser {
     pub user: User,
 }
@@ -198,6 +200,7 @@ pub fn authorize_user_access(caller: &User, target_id: Uuid) -> Result<(), AppEr
 }
 
 /// Check if a role string is valid.
+#[allow(dead_code)]
 pub fn is_valid_role(role: &str) -> bool {
     ROLES.contains(&role)
 }

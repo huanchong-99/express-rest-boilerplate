@@ -11,7 +11,7 @@ use crate::middleware::auth::create_access_token;
 /// Register a new user and return (user, access_token, refresh_token, expires_at).
 pub async fn register_user(
     pool: &PgPool,
-    jwt_secret: &str,
+    signing_key: &str,
     expiration_minutes: i64,
     email: &str,
     password: &str,
@@ -37,7 +37,7 @@ pub async fn register_user(
         AppError::Internal(e.to_string())
     })?;
 
-    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+    let (access_token, expires) = create_access_token(user.id, signing_key, expiration_minutes)?;
     let new_refresh = create_refresh_token(&mut tx, &user).await?;
 
     tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
@@ -48,7 +48,7 @@ pub async fn register_user(
 /// Login: verify email + password, return tokens.
 pub async fn authenticate_user(
     pool: &PgPool,
-    jwt_secret: &str,
+    signing_key: &str,
     expiration_minutes: i64,
     email: &str,
     password: &str,
@@ -66,7 +66,7 @@ pub async fn authenticate_user(
         return Err(AppError::IncorrectCredentials);
     }
 
-    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+    let (access_token, expires) = create_access_token(user.id, signing_key, expiration_minutes)?;
 
     let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
     let new_refresh = create_refresh_token(&mut tx, &user).await?;
@@ -78,7 +78,7 @@ pub async fn authenticate_user(
 /// Refresh: verify email + refresh token, consume old, issue new tokens.
 pub async fn refresh_access_token(
     pool: &PgPool,
-    jwt_secret: &str,
+    signing_key: &str,
     expiration_minutes: i64,
     email: &str,
     refresh_token_str: &str,
@@ -99,7 +99,7 @@ pub async fn refresh_access_token(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    let (access_token, expires) = create_access_token(user.id, jwt_secret, expiration_minutes)?;
+    let (access_token, expires) = create_access_token(user.id, signing_key, expiration_minutes)?;
 
     let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
     let new_refresh = create_refresh_token(&mut tx, &user).await?;

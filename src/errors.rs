@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("Not found")]
+    #[allow(dead_code)]
     NotFound,
 
     #[error("Unauthorized")]

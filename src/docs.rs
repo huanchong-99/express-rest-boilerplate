@@ -6,7 +6,6 @@ use utoipa::openapi::security::SecurityScheme;
 use utoipa::{Modify, OpenApi};
 
 use crate::handlers::auth::{AuthResponse, LoginRequest, RefreshRequest, RegisterRequest, TokenResponse};
-use crate::handlers::user::ListUsersQuery;
 use crate::models::refresh_token::{NewRefreshToken, RefreshToken};
 use crate::models::user::{NewUser, UpdateUser, User, UserResponse};
 
@@ -44,7 +43,6 @@ use crate::models::user::{NewUser, UpdateUser, User, UserResponse};
             RegisterRequest,
             LoginRequest,
             RefreshRequest,
-            ListUsersQuery,
             crate::errors::ErrorBody,
             crate::errors::FieldError,
         )
@@ -61,7 +59,7 @@ impl Modify for SecurityAddon {
         if let Some(components) = openapi.components.as_mut() {
             components.add_security_scheme(
                 "bearer_auth",
-                SecurityScheme::http(utoipa::openapi::security::Http::new(
+                SecurityScheme::Http(utoipa::openapi::security::Http::new(
                     utoipa::openapi::security::HttpAuthScheme::Bearer,
                 )),
             );

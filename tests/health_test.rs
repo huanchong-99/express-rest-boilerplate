@@ -2,34 +2,24 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use axum::routing::get;
+use axum::Router;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
-fn create_test_app() -> axum::Router {
-    use axum::Router;
-    use axum::routing::get;
-    use tower_http::cors::CorsLayer;
-    use tower_http::trace::TraceLayer;
-
-    // Build a minimal router with just the health endpoint for testing.
-    Router::new()
-        .route("/health", get(health_check))
-        .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
+/// Build a minimal test router that directly uses the handler from the library crate.
+fn create_health_test_app() -> Router {
+    Router::new().route("/v1/health-check", get(express_rest_boilerplate::handlers::health::health_check))
 }
 
 #[tokio::test]
 async fn health_check_returns_200_ok() {
-    let app = create_test_app();
+    let app = create_health_test_app();
 
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/health")
+                .uri("/v1/health-check")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -38,11 +28,34 @@ async fn health_check_returns_200_ok() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = response.into_body()
+    let body = response
+        .into_body()
         .collect()
         .await
         .unwrap()
         .to_bytes();
     let text = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(text, "OK");
+    assert_eq!(text, "\"OK\"");
+}
+
+#[tokio::test]
+async fn health_check_returns_json_content_type() {
+    let app = create_health_test_app();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/health-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .expect("content-type header should be present");
+    assert!(content_type.to_str().unwrap().contains("application/json"));
 }
