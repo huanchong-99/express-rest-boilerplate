@@ -1,4 +1,4 @@
-//! User route stubs — mirrors src/api/routes/v1/user.route.js
+//! User routes — mirrors src/api/routes/v1/user.route.js
 //!
 //! Route group: /v1/users
 //!   GET    /              – List users (admin only)
@@ -9,48 +9,25 @@
 //!   PATCH  /:userId       – Update user (logged-in user or admin)
 //!   DELETE /:userId       – Delete user (logged-in user or admin)
 
-use axum::http::StatusCode;
+use axum::routing::{delete, get, patch, post, put};
+use axum::Router;
 
-use crate::errors::AppError;
+use crate::app_state::AppState;
+use crate::handlers;
 
-/// Placeholder: GET /v1/users
-#[allow(dead_code)]
-pub async fn list_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: POST /v1/users
-#[allow(dead_code)]
-pub async fn create_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: GET /v1/users/profile
-#[allow(dead_code)]
-pub async fn profile_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: GET /v1/users/:userId
-#[allow(dead_code)]
-pub async fn get_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: PUT /v1/users/:userId
-#[allow(dead_code)]
-pub async fn replace_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: PATCH /v1/users/:userId
-#[allow(dead_code)]
-pub async fn update_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: DELETE /v1/users/:userId
-#[allow(dead_code)]
-pub async fn delete_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
+/// Build the /v1/users route group.
+pub fn user_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/",
+            get(handlers::user::list_users).post(handlers::user::create_user),
+        )
+        .route("/profile", get(handlers::user::get_profile))
+        .route(
+            "/:user_id",
+            get(handlers::user::get_user)
+                .put(handlers::user::replace_user)
+                .patch(handlers::user::update_user)
+                .delete(handlers::user::delete_user),
+        )
 }

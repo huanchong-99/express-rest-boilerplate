@@ -44,7 +44,7 @@ pub fn create_app(state: AppState) -> Router {
         )
         .route("/v1/users/profile", get(handlers::user::get_profile))
         .route(
-            "/v1/users/{user_id}",
+            "/v1/users/:user_id",
             get(handlers::user::get_user)
                 .put(handlers::user::replace_user)
                 .patch(handlers::user::update_user)

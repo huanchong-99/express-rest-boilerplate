@@ -1,4 +1,4 @@
-//! Auth route stubs — mirrors src/api/routes/v1/auth.route.js
+//! Auth routes — mirrors src/api/routes/v1/auth.route.js
 //!
 //! Route group: /v1/auth
 //!   POST /register      – Register a new user
@@ -9,24 +9,16 @@
 //! TODO: POST /v1/auth/facebook
 //! TODO: POST /v1/auth/google
 
-use axum::http::StatusCode;
+use axum::routing::post;
+use axum::Router;
 
-use crate::errors::AppError;
+use crate::app_state::AppState;
+use crate::handlers;
 
-/// Placeholder: POST /v1/auth/register
-#[allow(dead_code)]
-pub async fn register_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: POST /v1/auth/login
-#[allow(dead_code)]
-pub async fn login_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
-}
-
-/// Placeholder: POST /v1/auth/refresh-token
-#[allow(dead_code)]
-pub async fn refresh_stub() -> Result<StatusCode, AppError> {
-    Err(AppError::NotFound)
+/// Build the /v1/auth route group.
+pub fn auth_routes() -> Router<AppState> {
+    Router::new()
+        .route("/register", post(handlers::auth::register))
+        .route("/login", post(handlers::auth::login))
+        .route("/refresh-token", post(handlers::auth::refresh))
 }

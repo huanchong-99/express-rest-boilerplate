@@ -17,12 +17,17 @@ use crate::create_app;
 
 /// Build a test `AppConfig` with safe defaults.
 ///
-/// These values are intentionally non-secret and only used for tests.
+/// Values are sourced from environment variables when available so that no
+/// credentials are embedded in source code.  Fallbacks are intentionally
+/// generic placeholders suitable only for local development.
 pub fn test_config() -> AppConfig {
+    let database_url = std::env::var("TEST_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://localhost:5432/express_rest_boilerplate_test".into());
+    let token_signing_key = std::env::var("TEST_JWT_SECRET")
+        .unwrap_or_else(|_| "insecure-test-key".into());
     AppConfig {
-        database_url: "postgres://postgres:postgres@localhost:5432/express_rest_boilerplate_test"
-            .into(),
-        token_signing_key: "test-only-secret-not-for-production".into(),
+        database_url,
+        token_signing_key,
         jwt_expiration_minutes: 15,
         port: 0, // unused in tests
         host: "127.0.0.1".into(),

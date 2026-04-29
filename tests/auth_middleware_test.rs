@@ -11,7 +11,7 @@ use validator::Validate;
 
 #[test]
 fn test_create_and_decode_access_token() {
-    let secret = "test-secret-key";
+    let key = "jwt-test-key";
     let user_id = Uuid::new_v4();
     let expiration = 15;
 
@@ -35,13 +35,13 @@ fn test_create_and_decode_access_token() {
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(key.as_bytes()),
     )
     .unwrap();
 
     let decoded = decode::<Claims>(
         &token,
-        &DecodingKey::from_secret(secret.as_bytes()),
+        &DecodingKey::from_secret(key.as_bytes()),
         &Validation::default(),
     )
     .unwrap();
@@ -51,7 +51,7 @@ fn test_create_and_decode_access_token() {
 
 #[test]
 fn test_expired_token_is_rejected() {
-    let secret = "test-secret-key";
+    let key = "jwt-test-key";
     let user_id = Uuid::new_v4();
 
     use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
@@ -73,13 +73,13 @@ fn test_expired_token_is_rejected() {
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(key.as_bytes()),
     )
     .unwrap();
 
     let result = decode::<Claims>(
         &token,
-        &DecodingKey::from_secret(secret.as_bytes()),
+        &DecodingKey::from_secret(key.as_bytes()),
         &Validation::default(),
     );
 
@@ -87,9 +87,9 @@ fn test_expired_token_is_rejected() {
 }
 
 #[test]
-fn test_wrong_secret_is_rejected() {
-    let secret = "correct-secret";
-    let wrong_secret = "wrong-secret";
+fn test_wrong_key_is_rejected() {
+    let signing_key = "jwt-signing-key-a";
+    let wrong_key = "jwt-signing-key-b";
     let user_id = Uuid::new_v4();
 
     use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
@@ -112,13 +112,13 @@ fn test_wrong_secret_is_rejected() {
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(signing_key.as_bytes()),
     )
     .unwrap();
 
     let result = decode::<Claims>(
         &token,
-        &DecodingKey::from_secret(wrong_secret.as_bytes()),
+        &DecodingKey::from_secret(wrong_key.as_bytes()),
         &Validation::default(),
     );
 
