@@ -3,15 +3,27 @@ services:
   boilerplate-api:
     build: .
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/express-rest-es2017-boilerplate
+      - RUST_ENV=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/express_rest_boilerplate
+      - JWT_SECRET=local-dev-only-not-for-production
+      - JWT_EXPIRATION_MINUTES=15
     volumes:
       - .:/app
     ports:
       - "3000:3000"
     depends_on:
-      - mongodb
+      - postgres
 
-  mongodb:
-    image: mongo
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: express_rest_boilerplate
     ports:
-      - "27017:27017"
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

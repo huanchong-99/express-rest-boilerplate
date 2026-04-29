@@ -1,4 +1,5 @@
 version: "2"
 services:
   boilerplate-api:
-    command: yarn start
+    environment:
+      - RUST_ENV=production

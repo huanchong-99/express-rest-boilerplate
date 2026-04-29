@@ -1,172 +1,166 @@
-# Express ES2017 REST API Boilerplate
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com) [![Build Status](https://travis-ci.org/danielfsousa/express-rest-es2017-boilerplate.svg?branch=master)](https://travis-ci.org/danielfsousa/express-rest-es2017-boilerplate) [![Coverage Status](https://coveralls.io/repos/github/danielfsousa/express-rest-es2017-boilerplate/badge.svg?branch=master)](https://coveralls.io/github/danielfsousa/express-rest-es2017-boilerplate?branch=master) [![bitHound Overall Score](https://www.bithound.io/github/danielfsousa/express-rest-es2017-boilerplate/badges/score.svg)](https://www.bithound.io/github/danielfsousa/express-rest-es2017-boilerplate)
+# Express REST Boilerplate — Rust/Axum Migration
 
-Boilerplate/Generator/Starter Project for building RESTful APIs and microservices using Node.js, Express and MongoDB
+REST API boilerplate migrated from Express.js/MongoDB to **Rust/Axum/PostgreSQL**.
 
-## Features
+## Tech Stack
 
- - No transpilers, just vanilla javascript
- - ES2017 latest features like Async/Await
- - CORS enabled
- - Uses [yarn](https://yarnpkg.com)
- - Express + MongoDB ([Mongoose](http://mongoosejs.com/))
- - Consistent coding styles with [editorconfig](http://editorconfig.org)
- - [Docker](https://www.docker.com/) support
- - Uses [helmet](https://github.com/helmetjs/helmet) to set some HTTP headers for security
- - Load environment variables from .env files with [dotenv](https://github.com/rolodato/dotenv-safe)
- - Request validation with [joi](https://github.com/hapijs/joi)
- - Gzip compression with [compression](https://github.com/expressjs/compression)
- - Linting with [eslint](http://eslint.org)
- - Tests with [mocha](https://mochajs.org), [chai](http://chaijs.com) and [sinon](http://sinonjs.org)
- - Code coverage with [istanbul](https://istanbul.js.org) and [coveralls](https://coveralls.io)
- - Git hooks with [husky](https://github.com/typicode/husky) 
- - Logging with [morgan](https://github.com/expressjs/morgan) and [winston](https://github.com/winstonjs/winston)
- - Authentication and Authorization with [passport](http://passportjs.org)
- - API documentation geratorion with [apidoc](http://apidocjs.com)
- - Continuous integration support with [travisCI](https://travis-ci.org)
- - Monitoring with [pm2](https://github.com/Unitech/pm2)
+| Layer         | Original (Express.js) | Migrated (Rust)            |
+|---------------|----------------------|----------------------------|
+| Runtime       | Node.js              | Tokio (async runtime)      |
+| Framework     | Express              | Axum 0.7                   |
+| Database      | MongoDB (Mongoose)   | PostgreSQL (SQLx)          |
+| Auth          | Passport + jwt-simple| jsonwebtoken + argon2      |
+| Validation    | Joi                  | validator crate            |
+| Docs          | apidoc               | utoipa + Swagger UI        |
+| Logging       | Winston + Morgan     | tracing + tracing-subscriber|
 
 ## Requirements
 
- - [Node v7.6+](https://nodejs.org/en/download/current/) or [Docker](https://www.docker.com/)
- - [Yarn](https://yarnpkg.com/en/docs/install)
+- [Rust](https://rustup.rs/) (latest stable, 1.83+)
+- [PostgreSQL](https://www.postgresql.org/) 14+
+- [Docker](https://www.docker.com/) (optional)
 
 ## Getting Started
 
-Clone the repo and make it yours:
-
 ```bash
-git clone xxx
-cd xxx
-rm -rf .git
+# Clone the repo
+git clone <repo-url>
+cd express-rest-boilerplate
+
+# Copy environment configuration
+cp .env.example .env
+
+# Create the PostgreSQL database
+createdb express_rest_boilerplate
+
+# Build and run
+cargo run
 ```
 
-Install dependencies:
+The server starts at `http://localhost:3000` by default.
 
-```bash
-yarn
-```
+Swagger UI is available at `http://localhost:3000/docs`.
 
-Set environment variables:
+## Environment Variables
+
+| Variable                | Default       | Description                          |
+|-------------------------|---------------|--------------------------------------|
+| `RUST_ENV`              | `development` | Environment name                     |
+| `HOST`                  | `0.0.0.0`     | Server bind address                  |
+| `PORT`                  | `3000`        | Server port                          |
+| `JWT_SECRET`            | — (required)  | Secret for signing JWT tokens        |
+| `JWT_EXPIRATION_MINUTES`| `15`          | Access token lifetime                |
+| `DATABASE_URL`          | — (required)  | PostgreSQL connection string         |
+
+Copy `.env.example` to `.env` and adjust values:
 
 ```bash
 cp .env.example .env
 ```
 
-## Running Locally
+## Project Structure
 
-```bash
-yarn dev
+```
+src/
+├── main.rs              # Entry point: config, tracing, DB pool, server
+├── lib.rs               # Crate root: module declarations, create_app()
+├── config.rs            # AppConfig loading from environment
+├── db.rs                # PgPool creation and migration runner
+├── app_state.rs         # Shared AppState (pool + config)
+├── errors.rs            # Unified AppError enum with IntoResponse
+├── extractors.rs        # ValidatedJson / ValidatedQuery extractors
+├── middleware/
+│   ├── mod.rs
+│   └── auth.rs          # JWT auth extractors: AuthUser, AdminUser, LoggedUser
+├── models/
+│   ├── mod.rs
+│   ├── user.rs          # User, NewUser, UpdateUser, UserResponse
+│   └── refresh_token.rs # RefreshToken, NewRefreshToken
+├── handlers/
+│   ├── mod.rs
+│   ├── health.rs        # GET /v1/health-check
+│   ├── auth.rs          # POST register, login, refresh-token
+│   └── user.rs          # CRUD + profile endpoints
+├── services/
+│   ├── mod.rs
+│   ├── auth_service.rs  # Registration, login, token refresh logic
+│   └── user_service.rs  # User CRUD database operations
+├── routes/
+│   ├── mod.rs           # Route group definitions
+│   ├── auth.rs          # Auth route stubs
+│   └── user.rs          # User route stubs
+├── docs.rs              # utoipa OpenAPI specification
+├── schema.rs            # Re-exports of model types
+└── test_utils.rs        # Test helpers (config, app builder, assertions)
+migrations/
+├── 20240101000000_create_users_table.sql
+└── 20240101000001_create_refresh_tokens_table.sql
+tests/
+├── health_test.rs       # Health-check integration tests
+└── auth_middleware_test.rs # Auth, hashing, validation unit tests
 ```
 
-## Running in Production
+## API Endpoints
+
+| Method | Path                    | Auth          | Description              |
+|--------|-------------------------|---------------|--------------------------|
+| GET    | `/v1/health-check`      | Public        | Service health check     |
+| POST   | `/v1/auth/register`     | Public        | Register new user        |
+| POST   | `/v1/auth/login`        | Public        | Login with credentials   |
+| POST   | `/v1/auth/refresh-token`| Public        | Refresh access token     |
+| GET    | `/v1/users`             | Admin         | List all users           |
+| POST   | `/v1/users`             | Admin         | Create user              |
+| GET    | `/v1/users/profile`     | Logged-in     | Current user profile     |
+| GET    | `/v1/users/{user_id}`   | Owner/Admin   | Get user by ID           |
+| PUT    | `/v1/users/{user_id}`   | Owner/Admin   | Replace user             |
+| PATCH  | `/v1/users/{user_id}`   | Owner/Admin   | Update user              |
+| DELETE | `/v1/users/{user_id}`   | Owner/Admin   | Delete user              |
+
+## Running Tests
 
 ```bash
-yarn start
+# Run all tests
+cargo test
+
+# Run with output
+cargo test -- --nocapture
+
+# Run only integration tests
+cargo test --test health_test
+cargo test --test auth_middleware_test
 ```
 
-## Lint
-
-```bash
-# lint code with ESLint
-yarn lint
-
-# try to fix ESLint errors
-yarn lint:fix
-
-# lint and watch for changes
-yarn lint:watch
-```
-
-## Test
-
-```bash
-# run all tests with Mocha
-yarn test
-
-# run unit tests
-yarn test:unit
-
-# run integration tests
-yarn test:integration
-
-# run all tests and watch for changes
-yarn test:watch
-
-# open nyc test coverage reports
-yarn coverage
-```
-
-## Validate
-
-```bash
-# run lint and tests
-yarn validate
-```
-
-## Logs
-
-```bash
-# show all logs
-yarn logs
-
-# show error logs
-yarn logs:error
-```
-
-## Documentation
-
-```bash
-# generate and open api documentation
-yarn docs
-```
+> **Note:** Integration tests that hit the database require a running PostgreSQL instance with the test database set up.
 
 ## Docker
 
 ```bash
-# run container locally
-yarn docker:dev
-or
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Development
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
-# run container in production
-yarn docker:prod
-or
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# Production
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 
-# run tests
-yarn docker:test
-or
-docker-compose -f docker-compose.yml -f docker-compose.test.yml up
+# Test
+docker compose -f docker-compose.yml -f docker-compose.test.yml up
 ```
 
-## Deploy
+The Dockerfile uses a multi-stage build with `cargo-chef` for dependency caching, producing a minimal runtime image based on `debian:bookworm-slim`.
 
-Set your server ip:
+## Migration Notes
 
-```bash
-DEPLOY_SERVER=127.0.0.1
-```
+This project was migrated from the [Express REST ES2017 Boilerplate](https://github.com/danielfsousa/express-rest-es2017-boilerplate). Key migration decisions:
 
-Replace my Docker username with yours:
+- **MongoDB → PostgreSQL**: Mongoose schemas translated to SQL with proper constraints, foreign keys, and indexes
+- **bcrypt → argon2**: Password hashing upgraded to Argon2 for modern security
+- **jwt-simple → jsonwebtoken**: JWT handling with proper claims validation
+- **Joi → validator**: Request validation using Rust's validator derive macros
+- **Winston/Morgan → tracing**: Structured logging with tracing-subscriber
+- **apidoc → utoipa**: OpenAPI 3.0 spec auto-generated from handler annotations
+- **ObjectID → UUID**: Primary keys use PostgreSQL UUIDs (v4)
 
-```bash
-nano deploy.sh
-```
-
-Run deploy script:
-
-```bash
-yarn deploy
-or
-./deploy.sh
-```
-
-## Inspirations
-
- - [KunalKapadia/express-mongoose-es6-rest-api](https://github.com/KunalKapadia/express-mongoose-es6-rest-api)
- - [diegohaz/rest](https://github.com/diegohaz/rest)
+The original Express.js source remains in `src/api/` for reference during the migration.
 
 ## License
 
-[MIT License](README.md) - [Daniel Sousa](https://github.com/danielfsousa)
+[MIT License](LICENSE) - [Daniel Sousa](https://github.com/danielfsousa)

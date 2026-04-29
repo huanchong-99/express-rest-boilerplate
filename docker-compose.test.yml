@@ -1,4 +1,6 @@
 version: "2"
 services:
   boilerplate-api:
-    command: yarn test
+    environment:
+      - RUST_ENV=test
+    command: cargo test
