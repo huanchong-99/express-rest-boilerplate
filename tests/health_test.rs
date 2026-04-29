@@ -21,10 +21,10 @@ async fn health_check_returns_200_ok() {
             Request::builder()
                 .uri("/v1/health-check")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("should succeed");
 
     assert_eq!(response.status(), StatusCode::OK);
 
@@ -32,9 +32,9 @@ async fn health_check_returns_200_ok() {
         .into_body()
         .collect()
         .await
-        .unwrap()
+        .expect("should succeed")
         .to_bytes();
-    let text = String::from_utf8(body.to_vec()).unwrap();
+    let text = String::from_utf8(body.to_vec()).expect("should succeed");
     assert_eq!(text, "\"OK\"");
 }
 
@@ -47,15 +47,15 @@ async fn health_check_returns_json_content_type() {
             Request::builder()
                 .uri("/v1/health-check")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("should succeed");
 
     assert_eq!(response.status(), StatusCode::OK);
     let content_type = response
         .headers()
         .get("content-type")
         .expect("content-type header should be present");
-    assert!(content_type.to_str().unwrap().contains("application/json"));
+    assert!(content_type.to_str().expect("should succeed").contains("application/json"));
 }

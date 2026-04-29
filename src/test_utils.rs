@@ -85,7 +85,7 @@ mod tests {
         let request = Request::builder()
             .uri("/v1/health-check")
             .body(Body::empty())
-            .unwrap();
+            .expect("valid test request");
         let response = send_request(app, request).await;
         assert_status(&response, StatusCode::OK);
         let body = body_to_string(response.into_body()).await;

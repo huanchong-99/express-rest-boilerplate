@@ -37,14 +37,14 @@ fn test_create_and_decode_access_token() {
         &claims,
         &EncodingKey::from_secret(key.as_bytes()),
     )
-    .unwrap();
+    .expect("should succeed");
 
     let decoded = decode::<Claims>(
         &token,
         &DecodingKey::from_secret(key.as_bytes()),
         &Validation::default(),
     )
-    .unwrap();
+    .expect("should succeed");
 
     assert_eq!(decoded.claims.sub, user_id.to_string());
 }
@@ -75,7 +75,7 @@ fn test_expired_token_is_rejected() {
         &claims,
         &EncodingKey::from_secret(key.as_bytes()),
     )
-    .unwrap();
+    .expect("should succeed");
 
     let result = decode::<Claims>(
         &token,
@@ -114,7 +114,7 @@ fn test_wrong_key_is_rejected() {
         &claims,
         &EncodingKey::from_secret(signing_key.as_bytes()),
     )
-    .unwrap();
+    .expect("should succeed");
 
     let result = decode::<Claims>(
         &token,
@@ -149,12 +149,12 @@ fn hash_password(password: &str) -> String {
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
-        .unwrap()
+        .expect("should succeed")
         .to_string()
 }
 
 fn verify_password(password: &str, hash: &str) -> bool {
-    let parsed = PasswordHash::new(hash).unwrap();
+    let parsed = PasswordHash::new(hash).expect("should succeed");
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
