@@ -17,7 +17,7 @@ pub mod services;
 #[cfg(test)]
 pub mod test_utils;
 
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -35,21 +35,8 @@ pub fn create_app(state: AppState) -> Router {
     Router::new()
         .merge(SwaggerUi::new("/docs").url("/openapi.json", ApiDoc::openapi()))
         .route("/v1/health-check", get(handlers::health::health_check))
-        .route("/v1/auth/register", post(handlers::auth::register))
-        .route("/v1/auth/login", post(handlers::auth::login))
-        .route("/v1/auth/refresh-token", post(handlers::auth::refresh))
-        .route(
-            "/v1/users",
-            get(handlers::user::list_users).post(handlers::user::create_user),
-        )
-        .route("/v1/users/profile", get(handlers::user::get_profile))
-        .route(
-            "/v1/users/:user_id",
-            get(handlers::user::get_user)
-                .put(handlers::user::replace_user)
-                .patch(handlers::user::update_user)
-                .delete(handlers::user::delete_user),
-        )
+        .nest("/v1/auth", routes::auth::auth_routes())
+        .nest("/v1/users", routes::user::user_routes())
         .layer(axum::Extension(state.pool.clone()))
         .layer(axum::Extension(state.config.clone()))
         .layer(TraceLayer::new_for_http())
