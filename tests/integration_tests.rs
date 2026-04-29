@@ -662,8 +662,8 @@ fn int_user_response_from_user() -> Result<(), Box<dyn std::error::Error>> {
         picture: None,
         facebook_id: None,
         google_id: None,
-        created_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap(),
-        updated_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap(),
+        created_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().ok_or("invalid date")?,
+        updated_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().ok_or("invalid date")?,
     };
 
     let resp: UserResponse = user.into();
@@ -747,5 +747,139 @@ fn int_argon2_unique_salts() -> Result<(), Box<dyn std::error::Error>> {
     let h2 = Argon2::default().hash_password(pw.as_bytes(), &SaltString::generate(&mut OsRng))
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?.to_string();
     assert_ne!(h1, h2);
+    Ok(())
+}
+
+// ===========================================================================
+// JWT TOKEN TESTS
+// ===========================================================================
+
+#[test]
+fn int_token_round_trip() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::middleware::auth::{create_access_token, decode_access_token};
+    let user_id = uuid::Uuid::new_v4();
+    let (token, _) = create_access_token(user_id, "test-key", 15)?;
+    let claims = decode_access_token(&token, "test-key")?;
+    assert_eq!(claims.sub, user_id.to_string());
+    Ok(())
+}
+
+#[test]
+fn int_token_wrong_key_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::middleware::auth::{create_access_token, decode_access_token};
+    let user_id = uuid::Uuid::new_v4();
+    let (token, _) = create_access_token(user_id, "key-a", 15)?;
+    assert!(decode_access_token(&token, "key-b").is_err());
+    Ok(())
+}
+
+#[test]
+fn int_expired_token_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    let user_id = uuid::Uuid::new_v4();
+    let past = chrono::Utc::now() - chrono::Duration::hours(1);
+    let claims = serde_json::json!({"sub": user_id.to_string(), "exp": past.timestamp(), "iat": past.timestamp()});
+    let token = encode(&Header::default(), &claims, &EncodingKey::from_secret("test-key".as_bytes()))?;
+    assert!(express_rest_boilerplate::middleware::auth::decode_access_token(&token, "test-key").is_err());
+    Ok(())
+}
+
+// ===========================================================================
+// AUTHORIZATION LOGIC
+// ===========================================================================
+
+#[test]
+fn int_admin_can_access_any_user() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::middleware::auth::authorize_user_access;
+    let admin = make_test_user("00000000-0000-0000-0000-000000000001", "admin")?;
+    let target = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")?;
+    assert!(authorize_user_access(&admin, target).is_ok());
+    Ok(())
+}
+
+#[test]
+fn int_user_can_access_self() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::middleware::auth::authorize_user_access;
+    let user = make_test_user("00000000-0000-0000-0000-000000000001", "user")?;
+    assert!(authorize_user_access(&user, user.id).is_ok());
+    Ok(())
+}
+
+#[test]
+fn int_user_cannot_access_other() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::middleware::auth::authorize_user_access;
+    let user = make_test_user("00000000-0000-0000-0000-000000000001", "user")?;
+    let other = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000002")?;
+    assert!(authorize_user_access(&user, other).is_err());
+    Ok(())
+}
+
+#[test]
+fn int_role_validation() {
+    use express_rest_boilerplate::middleware::auth::is_valid_role;
+    assert!(is_valid_role("user"));
+    assert!(is_valid_role("admin"));
+    assert!(!is_valid_role("superadmin"));
+    assert!(!is_valid_role(""));
+}
+
+// ===========================================================================
+// SQLX ERROR MAPPING & APP ERROR STATUS CODES
+// ===========================================================================
+
+#[test]
+fn int_sqlx_row_not_found_maps_to_user_not_found() {
+    use express_rest_boilerplate::errors::AppError;
+    let err: AppError = sqlx::Error::RowNotFound.into();
+    match err { AppError::UserNotFound => {} other => panic!("Expected UserNotFound, got {:?}", other) }
+}
+
+#[test]
+fn int_error_status_codes() {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    use express_rest_boilerplate::errors::AppError;
+
+    assert_eq!(AppError::Unauthorized.into_response().status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(AppError::Forbidden.into_response().status(), StatusCode::FORBIDDEN);
+    assert_eq!(AppError::UserNotFound.into_response().status(), StatusCode::NOT_FOUND);
+    assert_eq!(AppError::NotFound.into_response().status(), StatusCode::NOT_FOUND);
+    assert_eq!(AppError::DuplicateEmail.into_response().status(), StatusCode::CONFLICT);
+    assert_eq!(AppError::BadRequest("x".into()).into_response().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(AppError::IncorrectCredentials.into_response().status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(AppError::IncorrectRefreshToken.into_response().status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(AppError::Internal("err".into()).into_response().status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(AppError::Validation { errors: vec![] }.into_response().status(), StatusCode::BAD_REQUEST);
+}
+
+// ===========================================================================
+// OPENAPI SPEC COMPLETENESS CHECK
+// ===========================================================================
+
+#[test]
+fn int_openapi_spec_is_complete() -> Result<(), Box<dyn std::error::Error>> {
+    use utoipa::OpenApi;
+    use express_rest_boilerplate::docs::ApiDoc;
+
+    let spec = ApiDoc::openapi();
+    let json = serde_json::to_value(&spec)?;
+
+    let paths = json["paths"].as_object().ok_or("paths should be object")?;
+    for expected in &[
+        "/v1/health-check", "/v1/auth/register", "/v1/auth/login",
+        "/v1/auth/refresh-token", "/v1/users", "/v1/users/profile", "/v1/users/{user_id}",
+    ] {
+        assert!(paths.contains_key(*expected), "Missing path: {}", expected);
+    }
+
+    let schemas = json["components"]["schemas"].as_object().ok_or("schemas should be object")?;
+    for expected in &[
+        "User", "UserResponse", "NewUser", "UpdateUser", "RefreshToken",
+        "NewRefreshToken", "AuthResponse", "TokenResponse", "RegisterRequest",
+        "LoginRequest", "RefreshRequest", "ErrorBody", "FieldError",
+    ] {
+        assert!(schemas.contains_key(*expected), "Missing schema: {}", expected);
+    }
+
     Ok(())
 }
