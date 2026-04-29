@@ -642,3 +642,110 @@ fn int_error_response_not_found() {
     assert_eq!(json["code"], 404);
     assert_eq!(json["message"], "User does not exist");
 }
+
+// ===========================================================================
+// MODEL SERIALIZATION TESTS
+// ===========================================================================
+
+#[test]
+fn int_user_response_from_user() -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::{TimeZone, Utc};
+    use express_rest_boilerplate::models::user::{User, UserResponse};
+    use uuid::Uuid;
+
+    let user = User {
+        id: Uuid::parse_str("00000000-0000-0000-0000-000000000001")?,
+        email: "test@example.com".into(),
+        password: "hashed-password".into(),
+        name: Some("Test User".into()),
+        role: "user".into(),
+        picture: None,
+        facebook_id: None,
+        google_id: None,
+        created_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap(),
+        updated_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap(),
+    };
+
+    let resp: UserResponse = user.into();
+    assert_eq!(resp.id.to_string(), "00000000-0000-0000-0000-000000000001");
+    assert_eq!(resp.email, "test@example.com");
+    assert_eq!(resp.name, Some("Test User".into()));
+    assert_eq!(resp.role, "user");
+    assert!(resp.picture.is_none());
+
+    let json = serde_json::to_value(&resp)?;
+    assert!(json.get("password").is_none());
+    Ok(())
+}
+
+#[test]
+fn int_field_error_serialization() -> Result<(), Box<dyn std::error::Error>> {
+    use express_rest_boilerplate::errors::FieldError;
+    let fe = FieldError::new("email", "body", vec!["duplicate".into()]);
+    let json = serde_json::to_value(&fe)?;
+    assert_eq!(json["field"], "email");
+    assert_eq!(json["location"], "body");
+    assert!(json["messages"].is_array());
+    Ok(())
+}
+
+#[test]
+fn int_new_user_model_validation() {
+    use express_rest_boilerplate::models::user::NewUser;
+    use validator::Validate;
+
+    assert!(NewUser { email: "user@example.com".into(), password: "password123".into(), name: Some("Test".into()), role: Some("admin".into()) }.validate().is_ok());
+    assert!(NewUser { email: "bad".into(), password: "password123".into(), name: None, role: None }.validate().is_err());
+    assert!(NewUser { email: "user@example.com".into(), password: "12345".into(), name: None, role: None }.validate().is_err());
+    assert!(NewUser { email: "user@example.com".into(), password: "x".repeat(129), name: None, role: None }.validate().is_err());
+    assert!(NewUser { email: "user@example.com".into(), password: "password123".into(), name: Some("x".repeat(129)), role: None }.validate().is_err());
+}
+
+#[test]
+fn int_update_user_model_validation() {
+    use express_rest_boilerplate::models::user::UpdateUser;
+    use validator::Validate;
+
+    assert!(UpdateUser { email: None, password: None, name: None, role: None, picture: None }.validate().is_ok());
+    assert!(UpdateUser { email: Some("bad".into()), password: None, name: None, role: None, picture: None }.validate().is_err());
+    assert!(UpdateUser { email: None, password: Some("12345".into()), name: None, role: None, picture: None }.validate().is_err());
+    assert!(UpdateUser { email: Some("new@example.com".into()), password: None, name: Some("New Name".into()), role: None, picture: None }.validate().is_ok());
+}
+
+// ===========================================================================
+// PASSWORD HASHING (argon2)
+// ===========================================================================
+
+#[test]
+fn int_argon2_password_hash_and_verify() -> Result<(), Box<dyn std::error::Error>> {
+    use argon2::password_hash::rand_core::OsRng;
+    use argon2::password_hash::SaltString;
+    use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+
+    let password = "test-password-integration";
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
+        .to_string();
+    let parsed = PasswordHash::new(&hash)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    assert!(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok());
+    assert!(Argon2::default().verify_password("wrong-password".as_bytes(), &parsed).is_err());
+    Ok(())
+}
+
+#[test]
+fn int_argon2_unique_salts() -> Result<(), Box<dyn std::error::Error>> {
+    use argon2::password_hash::rand_core::OsRng;
+    use argon2::password_hash::SaltString;
+    use argon2::{Argon2, PasswordHasher};
+
+    let pw = "same-password";
+    let h1 = Argon2::default().hash_password(pw.as_bytes(), &SaltString::generate(&mut OsRng))
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?.to_string();
+    let h2 = Argon2::default().hash_password(pw.as_bytes(), &SaltString::generate(&mut OsRng))
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?.to_string();
+    assert_ne!(h1, h2);
+    Ok(())
+}
