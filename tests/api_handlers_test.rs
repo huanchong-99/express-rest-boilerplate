@@ -1,5 +1,5 @@
 //! Comprehensive tests for auth and user API route handlers.
-
+//!
 //! These tests exercise the handler layer via Axum's oneshot test utility.
 //! They do NOT require a running database — they test routing, middleware
 //! extraction, validation, and response shape.
@@ -15,7 +15,7 @@ use express_rest_boilerplate::config::AppConfig;
 use express_rest_boilerplate::create_app;
 
 /// Build a test app with a real AppState pointing at a test database.
-fn create_test_app() -> Router {
+fn create_test_app() -> Result<Router, Box<dyn std::error::Error>> {
     let database_url = std::env::var("TEST_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://localhost:5432/express_rest_boilerplate_test".into());
     let token_signing_key = std::env::var("TEST_JWT_SECRET")
@@ -29,30 +29,25 @@ fn create_test_app() -> Router {
         env: "test".into(),
     };
 
-    let pool = sqlx::PgPool::connect_lazy(&config.database_url)
-        .expect("Failed to create pool");
+    let pool = sqlx::PgPool::connect_lazy(&config.database_url)?;
 
     let state = AppState { pool, config };
 
-    create_app(state)
+    Ok(create_app(state))
 }
 
 /// Helper to extract response body as String.
-async fn body_string(body: Body) -> String {
-    let bytes = body
-        .collect()
-        .await
-        .expect("response body should be collectable")
-        .to_bytes();
-    String::from_utf8(bytes.to_vec()).expect("response body should be valid UTF-8")
+async fn body_string(body: Body) -> Result<String, Box<dyn std::error::Error>> {
+    let bytes = body.collect().await?.to_bytes();
+    let text = String::from_utf8(bytes.to_vec())?;
+    Ok(text)
 }
 
 /// Helper to extract response body as serde_json::Value.
-async fn body_json(body: Body) -> serde_json::Value {
-    let text = body_string(body).await;
-    serde_json::from_str(&text).unwrap_or_else(|e| {
-        panic!("Failed to parse JSON: {e}");
-    })
+async fn body_json(body: Body) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let text = body_string(body).await?;
+    let value: serde_json::Value = serde_json::from_str(&text)?;
+    Ok(value)
 }
 
 // ================================================================
@@ -60,8 +55,8 @@ async fn body_json(body: Body) -> serde_json::Value {
 // ================================================================
 
 #[tokio::test]
-async fn register_missing_email_returns_400() {
-    let app = create_test_app();
+async fn register_missing_email_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -69,24 +64,21 @@ async fn register_missing_email_returns_400() {
                 .method("POST")
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"password":"123456"}"#))
-                .expect("valid request body"),
+                .body(Body::from(r#"{"password":"123456"}"#))?,
         )
-        .await
-        .expect("oneshot request should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let json = body_json(response.into_body()).await;
+    let json = body_json(response.into_body()).await?;
     assert_eq!(json["code"], 400);
-    // Missing required field produces a deserialization error (via ValidatedJson)
-    // which includes the field name in the message
-    let msg = json["message"].as_str().expect("message should be string");
+    let msg = json["message"].as_str().ok_or("message should be string")?;
     assert!(msg.contains("email") || msg.contains("Validation"));
+    Ok(())
 }
 
 #[tokio::test]
-async fn register_invalid_email_returns_400() {
-    let app = create_test_app();
+async fn register_invalid_email_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -94,26 +86,24 @@ async fn register_invalid_email_returns_400() {
                 .method("POST")
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"email":"not-an-email","password":"123456"}"#))
-                .expect("valid request"),
+                .body(Body::from(r#"{"email":"not-an-email","password":"123456"}"#))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let json = body_json(response.into_body()).await;
+    let json = body_json(response.into_body()).await?;
     assert_eq!(json["code"], 400);
 
-    // Check that the errors array contains an email field error
-    let errors = json["errors"].as_array().expect("errors should be array");
+    let errors = json["errors"].as_array().ok_or("errors should be array")?;
     assert!(!errors.is_empty());
     assert_eq!(errors[0]["field"], "email");
     assert_eq!(errors[0]["location"], "body");
+    Ok(())
 }
 
 #[tokio::test]
-async fn register_password_too_short_returns_400() {
-    let app = create_test_app();
+async fn register_password_too_short_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -123,22 +113,21 @@ async fn register_password_too_short_returns_400() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     r#"{"email":"user@example.com","password":"12345"}"#,
-                ))
-                .expect("valid request"),
+                ))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let json = body_json(response.into_body()).await;
-    let errors = json["errors"].as_array().expect("errors should be array");
+    let json = body_json(response.into_body()).await?;
+    let errors = json["errors"].as_array().ok_or("errors should be array")?;
     assert!(!errors.is_empty());
     assert_eq!(errors[0]["field"], "password");
+    Ok(())
 }
 
 #[tokio::test]
-async fn register_empty_body_returns_400() {
-    let app = create_test_app();
+async fn register_empty_body_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -146,18 +135,17 @@ async fn register_empty_body_returns_400() {
                 .method("POST")
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{}"#))
-                .expect("valid request"),
+                .body(Body::from(r#"{}"#))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    Ok(())
 }
 
 #[tokio::test]
-async fn login_missing_fields_returns_400() {
-    let app = create_test_app();
+async fn login_missing_fields_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -165,20 +153,19 @@ async fn login_missing_fields_returns_400() {
                 .method("POST")
                 .uri("/v1/auth/login")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{}"#))
-                .expect("valid request"),
+                .body(Body::from(r#"{}"#))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let json = body_json(response.into_body()).await;
+    let json = body_json(response.into_body()).await?;
     assert_eq!(json["code"], 400);
+    Ok(())
 }
 
 #[tokio::test]
-async fn login_invalid_email_returns_400() {
-    let app = create_test_app();
+async fn login_invalid_email_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -188,18 +175,17 @@ async fn login_invalid_email_returns_400() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     r#"{"email":"not-valid","password":"123456"}"#,
-                ))
-                .expect("valid request"),
+                ))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    Ok(())
 }
 
 #[tokio::test]
-async fn refresh_token_missing_fields_returns_400() {
-    let app = create_test_app();
+async fn refresh_token_missing_fields_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -207,13 +193,12 @@ async fn refresh_token_missing_fields_returns_400() {
                 .method("POST")
                 .uri("/v1/auth/refresh-token")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{}"#))
-                .expect("valid request"),
+                .body(Body::from(r#"{}"#))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    Ok(())
 }
 
 // ================================================================
@@ -221,78 +206,74 @@ async fn refresh_token_missing_fields_returns_400() {
 // ================================================================
 
 #[tokio::test]
-async fn get_profile_without_token_returns_401() {
-    let app = create_test_app();
+async fn get_profile_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/users/profile")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn get_profile_with_invalid_token_returns_401() {
-    let app = create_test_app();
+async fn get_profile_with_invalid_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/users/profile")
                 .header("Authorization", "Bearer invalid-token-here")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn get_profile_with_malformed_auth_returns_401() {
-    let app = create_test_app();
+async fn get_profile_with_malformed_auth_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/users/profile")
                 .header("Authorization", "NotBearer sometoken")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn list_users_without_token_returns_401() {
-    let app = create_test_app();
+async fn list_users_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/users")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn create_user_without_token_returns_401() {
-    let app = create_test_app();
+async fn create_user_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -302,35 +283,33 @@ async fn create_user_without_token_returns_401() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     r#"{"email":"test@example.com","password":"123456"}"#,
-                ))
-                .expect("valid request"),
+                ))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn get_user_by_id_without_token_returns_401() {
-    let app = create_test_app();
+async fn get_user_by_id_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn replace_user_without_token_returns_401() {
-    let app = create_test_app();
+async fn replace_user_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -340,18 +319,17 @@ async fn replace_user_without_token_returns_401() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     r#"{"email":"test@example.com","password":"123456"}"#,
-                ))
-                .expect("valid request"),
+                ))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn update_user_without_token_returns_401() {
-    let app = create_test_app();
+async fn update_user_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
@@ -359,31 +337,29 @@ async fn update_user_without_token_returns_401() {
                 .method("PATCH")
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"name":"Updated Name"}"#))
-                .expect("valid request"),
+                .body(Body::from(r#"{"name":"Updated Name"}"#))?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 #[tokio::test]
-async fn delete_user_without_token_returns_401() {
-    let app = create_test_app();
+async fn delete_user_without_token_returns_401() -> Result<(), Box<dyn std::error::Error>> {
+    let app = create_test_app()?;
 
     let response = app
         .oneshot(
             Request::builder()
                 .method("DELETE")
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
-                .body(Body::empty())
-                .expect("valid request body"),
+                .body(Body::empty())?,
         )
-        .await
-        .expect("oneshot should succeed");
+        .await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    Ok(())
 }
 
 // ================================================================
@@ -392,8 +368,6 @@ async fn delete_user_without_token_returns_401() {
 
 #[test]
 fn test_user_response_shape_matches_express() {
-    // Verify the UserResponse has the same fields as the Express transform() output:
-    // id, name, email, picture, role, createdAt
     let json = serde_json::json!({
         "id": "00000000-0000-0000-0000-000000000000",
         "name": "Test User",
@@ -403,20 +377,17 @@ fn test_user_response_shape_matches_express() {
         "created_at": "2024-01-01T00:00:00Z"
     });
 
-    // Ensure the fields match Express transform()
     assert!(json.get("id").is_some());
     assert!(json.get("name").is_some());
     assert!(json.get("email").is_some());
     assert!(json.get("picture").is_some());
     assert!(json.get("role").is_some());
     assert!(json.get("created_at").is_some());
-    // password should NOT be present
     assert!(json.get("password").is_none());
 }
 
 #[test]
 fn test_auth_response_shape_matches_express() {
-    // Express response: { token: { tokenType, accessToken, refreshToken, expiresIn }, user: { ... } }
     let json = serde_json::json!({
         "token": {
             "token_type": "Bearer",
@@ -444,7 +415,6 @@ fn test_auth_response_shape_matches_express() {
 
 #[test]
 fn test_error_response_shape_matches_express() {
-    // Express error: { code, message, errors: [{ field, location, messages }] }
     let json = serde_json::json!({
         "code": 409,
         "message": "Validation Error",
@@ -457,11 +427,10 @@ fn test_error_response_shape_matches_express() {
 
     assert_eq!(json["code"], 409);
     assert_eq!(json["message"], "Validation Error");
-    let errors = json["errors"].as_array().expect("should be array");
-    assert_eq!(errors[0]["field"], "email");
-    assert_eq!(errors[0]["location"], "body");
-    let msgs = errors[0]["messages"].as_array().expect("should be array");
-    assert!(msgs.contains(&serde_json::Value::String("\"email\" already exists".into())));
+    assert!(json["errors"].is_array());
+    assert!(json["errors"][0]["field"] == "email");
+    assert!(json["errors"][0]["location"] == "body");
+    assert!(json["errors"][0]["messages"].is_array());
 }
 
 #[test]

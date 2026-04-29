@@ -13,49 +13,26 @@ fn create_health_test_app() -> Router {
 }
 
 #[tokio::test]
-async fn health_check_returns_200_ok() {
+async fn health_check_returns_200_ok() -> Result<(), Box<dyn std::error::Error>> {
     let app = create_health_test_app();
-
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/v1/health-check")
-                .body(Body::empty())
-                .expect("valid request"),
-        )
-        .await
-        .expect("should succeed");
-
+    let response = app.oneshot(
+        Request::builder().uri("/v1/health-check").body(Body::empty())?
+    ).await?;
     assert_eq!(response.status(), StatusCode::OK);
-
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .expect("should succeed")
-        .to_bytes();
-    let text = String::from_utf8(body.to_vec()).expect("should succeed");
+    let body = response.into_body().collect().await?.to_bytes();
+    let text = String::from_utf8(body.to_vec())?;
     assert_eq!(text, "\"OK\"");
+    Ok(())
 }
 
 #[tokio::test]
-async fn health_check_returns_json_content_type() {
+async fn health_check_returns_json_content_type() -> Result<(), Box<dyn std::error::Error>> {
     let app = create_health_test_app();
-
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/v1/health-check")
-                .body(Body::empty())
-                .expect("valid request"),
-        )
-        .await
-        .expect("should succeed");
-
+    let response = app.oneshot(
+        Request::builder().uri("/v1/health-check").body(Body::empty())?
+    ).await?;
     assert_eq!(response.status(), StatusCode::OK);
-    let content_type = response
-        .headers()
-        .get("content-type")
-        .expect("content-type header should be present");
-    assert!(content_type.to_str().expect("should succeed").contains("application/json"));
+    let ct = response.headers().get("content-type").ok_or("missing content-type")?;
+    assert!(ct.to_str()?.contains("application/json"));
+    Ok(())
 }

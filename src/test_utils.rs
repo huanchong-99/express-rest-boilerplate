@@ -56,18 +56,19 @@ pub fn create_test_app_without_db() -> Router {
 }
 
 /// Helper to send a request to a test app and return the response.
-pub async fn send_request(app: Router, request: Request<Body>) -> axum::http::Response<Body> {
-    app.oneshot(request).await.expect("request should succeed")
+pub async fn send_request(
+    app: Router,
+    request: Request<Body>,
+) -> Result<axum::http::Response<Body>, Box<dyn std::error::Error>> {
+    let response = app.oneshot(request).await?;
+    Ok(response)
 }
 
 /// Helper to extract the response body as a string.
-pub async fn body_to_string(body: Body) -> String {
-    let bytes = body
-        .collect()
-        .await
-        .expect("body should be collectable")
-        .to_bytes();
-    String::from_utf8(bytes.to_vec()).expect("body should be valid UTF-8")
+pub async fn body_to_string(body: Body) -> Result<String, Box<dyn std::error::Error>> {
+    let bytes = body.collect().await?.to_bytes();
+    let text = String::from_utf8(bytes.to_vec())?;
+    Ok(text)
 }
 
 /// Helper to assert a response status code.
@@ -80,15 +81,15 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_health_check_via_test_app() {
+    async fn test_health_check_via_test_app() -> Result<(), Box<dyn std::error::Error>> {
         let app = create_test_app_without_db();
         let request = Request::builder()
             .uri("/v1/health-check")
-            .body(Body::empty())
-            .expect("valid test request");
-        let response = send_request(app, request).await;
+            .body(Body::empty())?;
+        let response = send_request(app, request).await?;
         assert_status(&response, StatusCode::OK);
-        let body = body_to_string(response.into_body()).await;
+        let body = body_to_string(response.into_body()).await?;
         assert_eq!(body, "\"OK\"");
+        Ok(())
     }
 }

@@ -10,7 +10,7 @@ use validator::Validate;
 // ---- Token creation and decoding ----
 
 #[test]
-fn test_create_and_decode_access_token() {
+fn test_create_and_decode_access_token() -> Result<(), Box<dyn std::error::Error>> {
     let key = "jwt-test-key";
     let user_id = Uuid::new_v4();
     let expiration = 15;
@@ -36,21 +36,20 @@ fn test_create_and_decode_access_token() {
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(key.as_bytes()),
-    )
-    .expect("should succeed");
+    )?;
 
     let decoded = decode::<Claims>(
         &token,
         &DecodingKey::from_secret(key.as_bytes()),
         &Validation::default(),
-    )
-    .expect("should succeed");
+    )?;
 
     assert_eq!(decoded.claims.sub, user_id.to_string());
+    Ok(())
 }
 
 #[test]
-fn test_expired_token_is_rejected() {
+fn test_expired_token_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let key = "jwt-test-key";
     let user_id = Uuid::new_v4();
 
@@ -74,8 +73,7 @@ fn test_expired_token_is_rejected() {
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(key.as_bytes()),
-    )
-    .expect("should succeed");
+    )?;
 
     let result = decode::<Claims>(
         &token,
@@ -84,10 +82,11 @@ fn test_expired_token_is_rejected() {
     );
 
     assert!(result.is_err());
+    Ok(())
 }
 
 #[test]
-fn test_wrong_key_is_rejected() {
+fn test_wrong_key_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let signing_key = "jwt-signing-key-a";
     let wrong_key = "jwt-signing-key-b";
     let user_id = Uuid::new_v4();
@@ -113,8 +112,7 @@ fn test_wrong_key_is_rejected() {
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(signing_key.as_bytes()),
-    )
-    .expect("should succeed");
+    )?;
 
     let result = decode::<Claims>(
         &token,
@@ -123,6 +121,7 @@ fn test_wrong_key_is_rejected() {
     );
 
     assert!(result.is_err());
+    Ok(())
 }
 
 // ---- Role validation ----
@@ -144,38 +143,41 @@ fn test_invalid_roles() {
 
 // ---- Password hashing (argon2) ----
 
-fn hash_password(password: &str) -> String {
+fn hash_password(password: &str) -> Result<String, Box<dyn std::error::Error>> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    argon2
+    let hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .expect("should succeed")
-        .to_string()
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?
+        .to_string();
+    Ok(hash)
 }
 
-fn verify_password(password: &str, hash: &str) -> bool {
-    let parsed = PasswordHash::new(hash).expect("should succeed");
-    Argon2::default()
+fn verify_password(password: &str, hash: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let parsed = PasswordHash::new(hash).map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?;
+    Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
-        .is_ok()
+        .is_ok())
 }
 
 #[test]
-fn test_argon2_password_hash_and_verify() {
+fn test_argon2_password_hash_and_verify() -> Result<(), Box<dyn std::error::Error>> {
     let password = "test-password-123";
-    let hash = hash_password(password);
-    assert!(verify_password(password, &hash));
-    assert!(!verify_password("wrong-password", &hash));
+    let hash = hash_password(password)?;
+    assert!(verify_password(password, &hash)?);
+    assert!(!verify_password("wrong-password", &hash)?);
+    Ok(())
 }
 
 #[test]
-fn test_argon2_different_hashes_for_same_password() {
+fn test_argon2_different_hashes_for_same_password() -> Result<(), Box<dyn std::error::Error>> {
     let password = "same-password";
-    let hash1 = hash_password(password);
-    let hash2 = hash_password(password);
+    let hash1 = hash_password(password)?;
+    let hash2 = hash_password(password)?;
     assert_ne!(hash1, hash2);
-    assert!(verify_password(password, &hash1));
-    assert!(verify_password(password, &hash2));
+    assert!(verify_password(password, &hash1)?);
+    assert!(verify_password(password, &hash2)?);
+    Ok(())
 }
 
 // ---- Input validation ----
