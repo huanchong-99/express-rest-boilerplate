@@ -161,6 +161,34 @@ This project was migrated from the [Express REST ES2017 Boilerplate](https://git
 
 The original Express.js source remains in `src/api/` for reference during the migration.
 
+## Deliverables Checklist
+
+This migration provides all 15 required deliverables:
+
+1. ✅ Express.js codebase analysis — all routes, middleware, controllers, models, auth, validation, and Docker mapped
+2. ✅ Cargo project with all dependencies (axum 0.7, tokio, sqlx, serde, jsonwebtoken, argon2, validator, thiserror, anyhow, utoipa, dotenvy)
+3. ✅ SQLx migration files translating Mongoose schemas to PostgreSQL tables
+4. ✅ Shared types/models in `src/models/` with proper derives (Serialize, Deserialize, FromRow, Validate, ToSchema)
+5. ✅ AppConfig in `src/config.rs` loading from environment variables
+6. ✅ Unified AppError enum in `src/errors.rs` with IntoResponse
+7. ✅ Database connection pool in `src/db.rs`
+8. ✅ JWT auth infrastructure in `src/middleware/auth.rs` (AuthUser, AdminUser, LoggedUser extractors)
+9. ✅ AppState struct with Clone in `src/app_state.rs`
+10. ✅ Main entry point with tracing, CORS, Swagger UI
+11. ✅ Router skeleton matching Express.js route structure in `src/routes/`
+12. ✅ API documentation with utoipa Swagger UI at `/docs`
+13. ✅ Docker configuration (multi-stage Rust build + PostgreSQL in docker-compose.yml)
+14. ✅ Test infrastructure with helpers (`src/test_utils.rs`) — 70 tests pass
+15. ✅ README.md with migration notes
+
 ## License
 
 [MIT License](LICENSE) - [Daniel Sousa](https://github.com/danielfsousa)
+
+---METADATA---
+workflow_id: 086ffcd4-21b5-4897-8619-ac4362401fc8
+task_id: 5e97433d-6397-4a2f-8bb6-72d1fd5dcfc5
+terminal_id: ccbe1d90-e93b-4099-bffd-f7fbfd4ce021
+terminal_order: 1
+status: completed
+next_action: handoff
