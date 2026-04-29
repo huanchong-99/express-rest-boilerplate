@@ -19,7 +19,7 @@ use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::errors::AppError;
-use crate::extractors::ValidatedJson;
+use crate::extractors::{ValidatedJson, ValidatedQuery};
 use crate::middleware::auth::{authorize_user_access, AdminUser, LoggedUser, ROLES};
 use crate::models::user::{NewUser, UpdateUser, UserResponse};
 
@@ -50,7 +50,7 @@ pub struct ListUsersQuery {
 pub async fn list_users(
     _admin: AdminUser,
     State(state): State<AppState>,
-    axum::extract::Query(query): axum::extract::Query<ListUsersQuery>,
+    ValidatedQuery(query): ValidatedQuery<ListUsersQuery>,
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
     let page = query.page.unwrap_or(1);
     let per_page = query.per_page.unwrap_or(30);

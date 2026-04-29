@@ -9,7 +9,7 @@
 //!   PATCH  /:userId       – Update user (logged-in user or admin)
 //!   DELETE /:userId       – Delete user (logged-in user or admin)
 
-use axum::routing::{delete, get, patch, post, put};
+use axum::routing::get;
 use axum::Router;
 
 use crate::app_state::AppState;

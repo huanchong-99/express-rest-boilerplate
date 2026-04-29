@@ -39,8 +39,12 @@ fn create_test_app() -> Router {
 
 /// Helper to extract response body as String.
 async fn body_string(body: Body) -> String {
-    let bytes = body.collect().await.unwrap().to_bytes();
-    String::from_utf8(bytes.to_vec()).unwrap()
+    let bytes = body
+        .collect()
+        .await
+        .expect("response body should be collectable")
+        .to_bytes();
+    String::from_utf8(bytes.to_vec()).expect("response body should be valid UTF-8")
 }
 
 /// Helper to extract response body as serde_json::Value.
@@ -66,17 +70,17 @@ async fn register_missing_email_returns_400() {
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"password":"123456"}"#))
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot request should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response.into_body()).await;
     assert_eq!(json["code"], 400);
     // Missing required field produces a deserialization error (via ValidatedJson)
     // which includes the field name in the message
-    let msg = json["message"].as_str().unwrap();
+    let msg = json["message"].as_str().expect("message should be string");
     assert!(msg.contains("email") || msg.contains("Validation"));
 }
 
@@ -91,10 +95,10 @@ async fn register_invalid_email_returns_400() {
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"email":"not-an-email","password":"123456"}"#))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response.into_body()).await;
@@ -120,10 +124,10 @@ async fn register_password_too_short_returns_400() {
                 .body(Body::from(
                     r#"{"email":"user@example.com","password":"12345"}"#,
                 ))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response.into_body()).await;
@@ -143,10 +147,10 @@ async fn register_empty_body_returns_400() {
                 .uri("/v1/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{}"#))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -162,10 +166,10 @@ async fn login_missing_fields_returns_400() {
                 .uri("/v1/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{}"#))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let json = body_json(response.into_body()).await;
@@ -185,10 +189,10 @@ async fn login_invalid_email_returns_400() {
                 .body(Body::from(
                     r#"{"email":"not-valid","password":"123456"}"#,
                 ))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -204,10 +208,10 @@ async fn refresh_token_missing_fields_returns_400() {
                 .uri("/v1/auth/refresh-token")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{}"#))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
@@ -225,10 +229,10 @@ async fn get_profile_without_token_returns_401() {
             Request::builder()
                 .uri("/v1/users/profile")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -243,10 +247,10 @@ async fn get_profile_with_invalid_token_returns_401() {
                 .uri("/v1/users/profile")
                 .header("Authorization", "Bearer invalid-token-here")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -261,10 +265,10 @@ async fn get_profile_with_malformed_auth_returns_401() {
                 .uri("/v1/users/profile")
                 .header("Authorization", "NotBearer sometoken")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -278,10 +282,10 @@ async fn list_users_without_token_returns_401() {
             Request::builder()
                 .uri("/v1/users")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -299,10 +303,10 @@ async fn create_user_without_token_returns_401() {
                 .body(Body::from(
                     r#"{"email":"test@example.com","password":"123456"}"#,
                 ))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -316,10 +320,10 @@ async fn get_user_by_id_without_token_returns_401() {
             Request::builder()
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -337,10 +341,10 @@ async fn replace_user_without_token_returns_401() {
                 .body(Body::from(
                     r#"{"email":"test@example.com","password":"123456"}"#,
                 ))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -356,10 +360,10 @@ async fn update_user_without_token_returns_401() {
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"name":"Updated Name"}"#))
-                .unwrap(),
+                .expect("valid request"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -374,10 +378,10 @@ async fn delete_user_without_token_returns_401() {
                 .method("DELETE")
                 .uri("/v1/users/00000000-0000-0000-0000-000000000000")
                 .body(Body::empty())
-                .unwrap(),
+                .expect("valid request body"),
         )
         .await
-        .unwrap();
+        .expect("oneshot should succeed");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -453,10 +457,10 @@ fn test_error_response_shape_matches_express() {
 
     assert_eq!(json["code"], 409);
     assert_eq!(json["message"], "Validation Error");
-    let errors = json["errors"].as_array().unwrap();
+    let errors = json["errors"].as_array().expect("should be array");
     assert_eq!(errors[0]["field"], "email");
     assert_eq!(errors[0]["location"], "body");
-    let msgs = errors[0]["messages"].as_array().unwrap();
+    let msgs = errors[0]["messages"].as_array().expect("should be array");
     assert!(msgs.contains(&serde_json::Value::String("\"email\" already exists".into())));
 }
 
