@@ -726,10 +726,10 @@ fn int_argon2_password_hash_and_verify() -> Result<(), Box<dyn std::error::Error
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
+        .map_err(|e| std::io::Error::other(e.to_string()))?
         .to_string();
     let parsed = PasswordHash::new(&hash)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     assert!(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok());
     assert!(Argon2::default().verify_password("wrong-password".as_bytes(), &parsed).is_err());
     Ok(())
@@ -743,9 +743,9 @@ fn int_argon2_unique_salts() -> Result<(), Box<dyn std::error::Error>> {
 
     let pw = "same-password";
     let h1 = Argon2::default().hash_password(pw.as_bytes(), &SaltString::generate(&mut OsRng))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?.to_string();
+        .map_err(|e| std::io::Error::other(e.to_string()))?.to_string();
     let h2 = Argon2::default().hash_password(pw.as_bytes(), &SaltString::generate(&mut OsRng))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?.to_string();
+        .map_err(|e| std::io::Error::other(e.to_string()))?.to_string();
     assert_ne!(h1, h2);
     Ok(())
 }

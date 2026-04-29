@@ -148,13 +148,13 @@ fn hash_password(password: &str) -> Result<String, Box<dyn std::error::Error>> {
     let argon2 = Argon2::default();
     let hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?
         .to_string();
     Ok(hash)
 }
 
 fn verify_password(password: &str, hash: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    let parsed = PasswordHash::new(hash).map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?;
+    let parsed = PasswordHash::new(hash).map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?;
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok())
